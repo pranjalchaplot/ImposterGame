@@ -142,6 +142,17 @@ export function ConfigureGameForm({
     if (CATEGORIES.length > 0 && !selectedCategory) {
       setSelectedCategory(CATEGORIES[0].value);
     }
+
+    const storedConfiguration = localStorage.getItem("gameConfiguration");
+    if (storedConfiguration) {
+      const parsedConfiguration = JSON.parse(storedConfiguration);
+      setSelectedCategory(parsedConfiguration.category || CATEGORIES[0].value);
+      setNumberOfPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
+      setNumberOfImposters(
+        parsedConfiguration.imposters || calculateInitialImposters()
+      );
+      setRevealRole(parsedConfiguration.revealEliminatedPlayerRole || false);
+    }
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -166,12 +177,19 @@ export function ConfigureGameForm({
       });
       return;
     }
-    onConfigurationComplete({
+    const gameConfiguration = {
       category: selectedCategory,
       players: numberOfPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
-    });
+    };
+
+    localStorage.setItem(
+      "gameConfiguration",
+      JSON.stringify(gameConfiguration)
+    );
+
+    onConfigurationComplete(gameConfiguration);
   };
 
   const imposterSliderMaxProp = Math.max(

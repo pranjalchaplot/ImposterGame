@@ -35,6 +35,7 @@ import {
   Shirt,
   Guitar,
   ChevronDown, // Added ChevronDown icon
+  X,
 } from "lucide-react";
 
 interface Category {
@@ -112,6 +113,51 @@ interface ConfigureGameFormProps {
   onConfigurationComplete: (settings: GameConfiguration) => void;
 }
 
+const AddPlayerModal = ({
+  isOpen,
+  onClose,
+  onAddPlayer,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddPlayer: (playerName: string) => void;
+}) => {
+  const [playerName, setPlayerName] = useState("");
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white p-6 rounded-md">
+        <Label htmlFor="player-name">Player Name:</Label>
+        <input
+          type="text"
+          id="player-name"
+          className="border border-gray-300 rounded-md p-2 w-full"
+          value={playerName}
+          onChange={(e) => setPlayerName(e.target.value)}
+        />
+        <div className="flex justify-end mt-4 space-x-2">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (playerName.trim() !== "") {
+                onAddPlayer(playerName);
+                onClose();
+              }
+              onAddPlayer(playerName);
+              onClose();
+            }}
+          >
+            OK
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 export function ConfigureGameForm({
   onConfigurationComplete,
 }: ConfigureGameFormProps) {
@@ -119,6 +165,9 @@ export function ConfigureGameForm({
   const [numberOfPlayers, setNumberOfPlayers] =
     useState<number>(DEFAULT_PLAYERS);
   const [revealRole, setRevealRole] = useState(false);
+  const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [playerNames, setPlayerNames] = useState<string[]>([]);
 
   const calculateInitialImposters = () => {
     const maxAllowed = Math.max(
@@ -385,8 +434,50 @@ export function ConfigureGameForm({
                 "Not selected"}
             </p>
             <p className="text-foreground">
-              <span className="font-semibold">Players:</span> {numberOfPlayers}
+              <span className="font-semibold">
+                Players ({playerNames.length} / {numberOfPlayers}):
+              </span>
             </p>
+            <div className="flex flex-wrap gap-2">
+              {playerNames.map((name, index) => (
+                <div
+                  key={index}
+                  className="inline-flex items-center rounded-full bg-secondary px-3 py-0.5 text-sm font-medium"
+                >
+                  <button
+                    type="button"
+                    className="h-3 w-3 mr-1 rounded-full hover:bg-gray-500 flex items-center justify-center"
+                    onClick={() => {
+                      const newPlayerNames = [...playerNames];
+                      newPlayerNames.splice(index, 1);
+                      setPlayerNames(newPlayerNames);
+                      setNumberOfPlayers(
+                        Math.max(numberOfPlayers - 1, MIN_PLAYERS)
+                      );
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  {name}
+                  <button
+                    type="button"
+                    className="ml-2 h-4 w-4 rounded-full hover:bg-gray-500 flex items-center justify-center"
+                  >
+                    <span className="sr-only">Remove</span>
+                    <Eye className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <Button
+                className="rounded-full px-2 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/80 min-w-[80px]"
+                onClick={() => {
+                  setPlayerName("");
+                  setIsAddPlayerModalOpen(true);
+                }}
+              >
+                add
+              </Button>
+            </div>
             <p className="text-foreground">
               <span className="font-semibold">Imposters:</span>{" "}
               {numberOfImposters}
@@ -397,6 +488,15 @@ export function ConfigureGameForm({
             </p>
           </div>
         </div>
+        <AddPlayerModal
+          isOpen={isAddPlayerModalOpen}
+          onClose={() => setIsAddPlayerModalOpen(false)}
+          onAddPlayer={(playerName) => {
+            console.log(`Adding player: ${playerName}`);
+            setNumberOfPlayers(Math.min(numberOfPlayers + 1, MAX_PLAYERS));
+            setPlayerNames([...playerNames, playerName]);
+          }}
+        />
       </CardContent>
       <CardFooter className="flex justify-center p-6 md:p-8 border-t border-border bg-muted/20">
         <Button

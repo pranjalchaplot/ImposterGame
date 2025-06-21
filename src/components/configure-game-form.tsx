@@ -11,12 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -35,6 +34,7 @@ import {
   Pizza,
   Shirt,
   Guitar,
+  ChevronDown, // Added ChevronDown icon
 } from "lucide-react";
 
 interface Category {
@@ -197,6 +197,11 @@ export function ConfigureGameForm({
     Math.floor(numberOfPlayers / 4)
   );
 
+  // Find the currently selected category object to display its label and icon
+  const currentCategory = CATEGORIES.find(
+    (cat) => cat.value === selectedCategory
+  );
+
   if (!isClient) {
     return (
       <Card className="w-full max-w-lg shadow-2xl rounded-xl">
@@ -247,28 +252,43 @@ export function ConfigureGameForm({
           >
             Select Category
           </Label>
-          <Select onValueChange={setSelectedCategory} value={selectedCategory}>
-            <SelectTrigger
-              id="category-select"
-              className="w-full text-base h-12 rounded-md"
-            >
-              <SelectValue placeholder="Choose a category..." />
-            </SelectTrigger>
-            <SelectContent>
+          {/* START: REFACTORED COMPONENT */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                id="category-select"
+                className="w-full text-base h-12 rounded-md justify-between font-normal"
+              >
+                {currentCategory ? (
+                  <div className="flex items-center">
+                    {currentCategory.icon}
+                    <span>{currentCategory.label}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Choose a category...
+                  </span>
+                )}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] max-h-72 overflow-y-auto">
               {CATEGORIES.map((cat) => (
-                <SelectItem
+                <DropdownMenuItem
                   key={cat.value}
-                  value={cat.value}
                   className="text-base py-2"
+                  onSelect={() => setSelectedCategory(cat.value)}
                 >
                   <div className="flex items-center">
                     {cat.icon}
                     <span>{cat.label}</span>
                   </div>
-                </SelectItem>
+                </DropdownMenuItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* END: REFACTORED COMPONENT */}
         </div>
 
         <div className="space-y-3">

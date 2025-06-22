@@ -111,6 +111,7 @@ export interface GameConfiguration {
   imposters: number;
   revealEliminatedPlayerRole: boolean;
   playerNames: string[];
+  imposterNames: string[];
 }
 
 interface ConfigureGameFormProps {
@@ -292,12 +293,18 @@ export function ConfigureGameForm({
       });
       return;
     }
+    // Randomly select imposters
+    const shuffled = [...registeredPlayers].sort(() => 0.5 - Math.random());
+    const imposters = shuffled.slice(0, numberOfImposters);
+    const imposterNames = imposters.map((p) => p.name);
+
     const gameConfiguration = {
       category: selectedCategory,
       players: maxPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
       playerNames: registeredPlayers.map((p) => p.name),
+      imposterNames,
     };
 
     localStorage.setItem(

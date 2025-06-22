@@ -240,6 +240,19 @@ export function ConfigureGameForm({
       );
       setRevealRole(parsedConfiguration.revealEliminatedPlayerRole || false);
     }
+
+    // Restore allPlayers from localStorage if present
+    const storedAllPlayers = localStorage.getItem("allPlayers");
+    if (storedAllPlayers) {
+      try {
+        const parsedAllPlayers = JSON.parse(storedAllPlayers);
+        if (Array.isArray(parsedAllPlayers)) {
+          setAllPlayers(parsedAllPlayers);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -254,6 +267,13 @@ export function ConfigureGameForm({
       )
     );
   }, [maxPlayers]);
+
+  // Persist allPlayers to localStorage whenever it changes
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem("allPlayers", JSON.stringify(allPlayers));
+    }
+  }, [allPlayers, isClient]);
 
   const handleStartGame = () => {
     if (!selectedCategory) {

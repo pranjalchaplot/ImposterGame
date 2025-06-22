@@ -110,6 +110,7 @@ export interface GameConfiguration {
   players: number;
   imposters: number;
   revealEliminatedPlayerRole: boolean;
+  playerNames: string[];
 }
 
 interface ConfigureGameFormProps {
@@ -263,11 +264,20 @@ export function ConfigureGameForm({
       });
       return;
     }
+    if (registeredPlayers.length !== maxPlayers) {
+      toast({
+        title: "Not Enough Players",
+        description: `Please register exactly ${maxPlayers} players before starting the game!`,
+        variant: "destructive",
+      });
+      return;
+    }
     const gameConfiguration = {
       category: selectedCategory,
       players: maxPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
+      playerNames: registeredPlayers.map((p) => p.name),
     };
 
     localStorage.setItem(
@@ -577,8 +587,9 @@ export function ConfigureGameForm({
           onClick={handleStartGame}
           className="w-full text-lg font-semibold py-3 h-12 rounded-md shadow-md hover:shadow-lg transition-shadow"
           size="lg"
+          disabled={registeredPlayers.length !== maxPlayers}
         >
-          Enter Player Names
+          Begin Game
         </Button>
       </CardFooter>
     </Card>

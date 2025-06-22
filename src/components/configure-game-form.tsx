@@ -37,9 +37,22 @@ import {
   ChevronDown, // Added ChevronDown icon
   X,
   EyeOff,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
 import { Player } from "@/models/player";
 import ReactDOM from "react-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
 
 interface Category {
   value: string;
@@ -111,6 +124,7 @@ export interface GameConfiguration {
   imposters: number;
   revealEliminatedPlayerRole: boolean;
   playerNames: string[];
+  imposterNames: string[];
 }
 
 interface ConfigureGameFormProps {
@@ -174,6 +188,11 @@ const AddPlayerModal = ({
               setPlayerName(e.target.value);
               setError("");
             }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleAdd();
+              }
+            }}
           />
           {error && (
             <div className="text-red-500 text-sm mt-2">{error}</div>
@@ -206,6 +225,7 @@ export function ConfigureGameForm({
   const [newPlayerName, setNewPlayerName] = useState("");
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [eyeToggled, setEyeToggled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const calculateInitialImposters = () => {
     const maxAllowed = Math.max(
@@ -232,13 +252,24 @@ export function ConfigureGameForm({
 
     const storedConfiguration = localStorage.getItem("gameConfiguration");
     if (storedConfiguration) {
-      const parsedConfiguration = JSON.parse(storedConfiguration);
-      setSelectedCategory(parsedConfiguration.category || CATEGORIES[0].value);
-      setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
-      setNumberOfImposters(
-        parsedConfiguration.imposters || calculateInitialImposters()
-      );
-      setRevealRole(parsedConfiguration.revealEliminatedPlayerRole || false);
+      try {
+        const parsedConfiguration = JSON.parse(storedConfiguration);
+        setSelectedCategory(
+          parsedConfiguration.category || CATEGORIES[0].value
+        );
+        setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
+        const impostersToSet =
+          parsedConfiguration.imposters !== undefined
+            ? parsedConfiguration.imposters
+            : calculateInitialImposters();
+        setNumberOfImposters(impostersToSet);
+        setRevealRole(
+          parsedConfiguration.revealEliminatedPlayerRole || false
+        );
+      } catch (e) {
+        // Only keep error log for parse failure
+        console.error("Failed to parse gameConfiguration from localStorage", e);
+      }
     }
 
     // Restore allPlayers from localStorage if present
@@ -253,20 +284,29 @@ export function ConfigureGameForm({
         // Ignore parse errors
       }
     }
-  }, [selectedCategory]);
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
     const newMaxAllowedImposters = Math.max(
       MIN_IMPOSTERS_SLIDER,
       Math.floor(maxPlayers / 4)
     );
-    setNumberOfImposters((currentImposters) =>
-      Math.max(
+    setNumberOfImposters((currentImposters) => {
+      const clamped = Math.max(
         MIN_IMPOSTERS_SLIDER,
         Math.min(currentImposters, newMaxAllowedImposters)
-      )
-    );
-  }, [maxPlayers]);
+      );
+      console.log(
+        `[ConfigureGame] maxPlayers changed to ${maxPlayers}. Max allowed imposters: ${newMaxAllowedImposters}. Current imposters: ${currentImposters}. Clamped imposters: ${clamped}`
+      );
+      return clamped;
+    });
+  }, [maxPlayers, isLoading]);
 
   // Persist allPlayers to localStorage whenever it changes
   useEffect(() => {
@@ -274,6 +314,27 @@ export function ConfigureGameForm({
       localStorage.setItem("allPlayers", JSON.stringify(allPlayers));
     }
   }, [allPlayers, isClient]);
+
+  // Persist numberOfImposters to localStorage whenever it changes
+  useEffect(() => {
+    if (isClient) {
+      const storedConfiguration = localStorage.getItem("gameConfiguration");
+      let config = {};
+      if (storedConfiguration) {
+        try {
+          config = JSON.parse(storedConfiguration);
+        } catch (e) {
+          console.error(
+            "[ConfigureGame] Failed to parse existing config, will create new one.",
+            e
+          );
+          config = {};
+        }
+      }
+      const newConfig = { ...config, imposters: numberOfImposters };
+      localStorage.setItem("gameConfiguration", JSON.stringify(newConfig));
+    }
+  }, [numberOfImposters, isClient]);
 
   const handleStartGame = () => {
     if (!selectedCategory) {
@@ -292,12 +353,18 @@ export function ConfigureGameForm({
       });
       return;
     }
+    // Randomly select imposters
+    const shuffled = [...registeredPlayers].sort(() => 0.5 - Math.random());
+    const imposters = shuffled.slice(0, numberOfImposters);
+    const imposterNames = imposters.map((p) => p.name);
+
     const gameConfiguration = {
       category: selectedCategory,
       players: maxPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
       playerNames: registeredPlayers.map((p) => p.name),
+      imposterNames,
     };
 
     localStorage.setItem(
@@ -572,15 +639,42 @@ export function ConfigureGameForm({
                 </div>
               ))}
               <Button
-                className="rounded-full px-2 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/80 min-w-[80px]"
+                className="rounded-full px-3 py-1.5 text-sm bg-primary text-primary-foreground hover:bg-primary/80 flex items-center"
                 onClick={() => {
                   setNewPlayerName("");
                   setIsAddPlayerModalOpen(true);
                 }}
                 disabled={registeredPlayers.length >= maxPlayers}
               >
-                add
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Player
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    className="rounded-full px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 flex items-center"
+                    disabled={allPlayers.length === 0}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action will remove all players from the list. This
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => setAllPlayers([])}>
+                      Continue
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             <p className="text-foreground">
               <span className="font-semibold">Imposters:</span>{" "}

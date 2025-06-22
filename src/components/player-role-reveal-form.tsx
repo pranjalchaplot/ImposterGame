@@ -6,11 +6,11 @@ import { Eye, CheckCircle, ArrowRight } from "lucide-react";
 interface PlayerRoleRevealFormProps {
   playerNames: string[];
   gameOption: string;
-  imposterIndices: number[];
+  imposterNames: string[];
   onComplete: (playerNames: string[]) => void;
 }
 
-export function PlayerRoleRevealForm({ playerNames, gameOption, imposterIndices, onComplete }: PlayerRoleRevealFormProps) {
+export function PlayerRoleRevealForm({ playerNames, gameOption, imposterNames, onComplete }: PlayerRoleRevealFormProps) {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
@@ -29,8 +29,11 @@ export function PlayerRoleRevealForm({ playerNames, gameOption, imposterIndices,
     return () => clearTimeout(timer);
   }, [revealed, currentPlayerIndex, playerNames, onComplete]);
 
-  const isImposter = imposterIndices.includes(currentPlayerIndex);
+  const isImposter = imposterNames.includes(playerNames[currentPlayerIndex]);
   const isLastPlayer = currentPlayerIndex === playerNames.length - 1;
+  const otherImposters = isImposter
+    ? imposterNames.filter((name) => name !== playerNames[currentPlayerIndex])
+    : [];
 
   return (
     <Card className="w-full max-w-lg shadow-2xl rounded-xl overflow-hidden">
@@ -53,6 +56,11 @@ export function PlayerRoleRevealForm({ playerNames, gameOption, imposterIndices,
                 {isImposter ? "Your Role:" : "Your secret item is:"}
               </p>
               <p className="text-xl font-bold text-accent">{isImposter ? "Imposter" : gameOption}</p>
+              {isImposter && otherImposters.length > 0 && (
+                <div className="mt-2 text-sm text-accent-foreground">
+                  <span className="font-semibold">Other Imposters:</span> {otherImposters.join(", ")}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">(Hides in 3 seconds)</p>
             </div>
           ) : (

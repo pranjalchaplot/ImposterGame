@@ -19,7 +19,7 @@ type GameStage = "configuring" | "enteringNames" | "gameReady" | "playingRound";
 interface FullGameSettings extends GameConfiguration {
   playerNames: string[];
   gameOption: string;
-  imposterIndices: number[];
+  imposterNames: string[];
 }
 
 interface PlayerStatus {
@@ -36,7 +36,6 @@ export default function Home() {
   const [currentStage, setCurrentStage] = useState<GameStage>("configuring");
   const [gameConfig, setGameConfig] = useState<GameConfiguration | null>(null);
   const [gameOption, setGameOption] = useState<string | null>(null);
-  const [imposterIndices, setImposterIndices] = useState<number[]>([]);
   const [fullGameSettings, setFullGameSettings] =
     useState<FullGameSettings | null>(null);
   const [playerStatuses, setPlayerStatuses] = useState<PlayerStatus[]>([]);
@@ -180,13 +179,6 @@ export default function Home() {
 
     setGameOption(selectedOption);
 
-    const { players, imposters } = settings;
-    const allPlayerIndices = Array.from({ length: players }, (_, i) => i);
-    const shuffledIndices = allPlayerIndices.sort(() => 0.5 - Math.random());
-    const selectedImposterIndices =
-      imposters > 0 ? shuffledIndices.slice(0, imposters) : [];
-    setImposterIndices(selectedImposterIndices);
-
     setCurrentStage("enteringNames");
     toast({
       title: "Configuration Saved!",
@@ -204,7 +196,7 @@ export default function Home() {
         ...gameConfig,
         playerNames,
         gameOption,
-        imposterIndices,
+        imposterNames: gameConfig.imposterNames,
       };
       setFullGameSettings(finalSettings);
       setCurrentStage("gameReady");
@@ -224,9 +216,9 @@ export default function Home() {
   const handleBeginRound = () => {
     if (fullGameSettings) {
       const initialStatuses = fullGameSettings.playerNames.map(
-        (name, index) => ({
+        (name) => ({
           name,
-          isImposter: fullGameSettings.imposterIndices.includes(index),
+          isImposter: fullGameSettings.imposterNames.includes(name),
           isEliminated: false,
           showRole: false,
         })
@@ -309,7 +301,6 @@ export default function Home() {
     setGameConfig(null);
     setFullGameSettings(null);
     setGameOption(null);
-    setImposterIndices([]);
     setPlayerStatuses([]);
     setIsGameOver(false);
     setGameOverMessage(null);
@@ -340,7 +331,7 @@ export default function Home() {
             <PlayerRoleRevealForm
               playerNames={gameConfig.playerNames}
               gameOption={gameOption}
-              imposterIndices={imposterIndices}
+              imposterNames={gameConfig.imposterNames}
               onComplete={handlePlayerNamesSubmitted}
             />
           );

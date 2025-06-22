@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: "Imposter Syndrome",
   description: "Configure your group game settings.",
+  icons: {
+    icon: "/imposter_logo.png",
+  },
 };
 
 export default function RootLayout({

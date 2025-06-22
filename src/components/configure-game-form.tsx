@@ -207,6 +207,7 @@ export function ConfigureGameForm({
   const [newPlayerName, setNewPlayerName] = useState("");
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [eyeToggled, setEyeToggled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const calculateInitialImposters = () => {
     const maxAllowed = Math.max(
@@ -233,13 +234,24 @@ export function ConfigureGameForm({
 
     const storedConfiguration = localStorage.getItem("gameConfiguration");
     if (storedConfiguration) {
-      const parsedConfiguration = JSON.parse(storedConfiguration);
-      setSelectedCategory(parsedConfiguration.category || CATEGORIES[0].value);
-      setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
-      setNumberOfImposters(
-        parsedConfiguration.imposters || calculateInitialImposters()
-      );
-      setRevealRole(parsedConfiguration.revealEliminatedPlayerRole || false);
+      try {
+        const parsedConfiguration = JSON.parse(storedConfiguration);
+        setSelectedCategory(
+          parsedConfiguration.category || CATEGORIES[0].value
+        );
+        setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
+        const impostersToSet =
+          parsedConfiguration.imposters !== undefined
+            ? parsedConfiguration.imposters
+            : calculateInitialImposters();
+        setNumberOfImposters(impostersToSet);
+        setRevealRole(
+          parsedConfiguration.revealEliminatedPlayerRole || false
+        );
+      } catch (e) {
+        // Only keep error log for parse failure
+        console.error("Failed to parse gameConfiguration from localStorage", e);
+      }
     }
 
     // Restore allPlayers from localStorage if present
@@ -254,20 +266,29 @@ export function ConfigureGameForm({
         // Ignore parse errors
       }
     }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
     const newMaxAllowedImposters = Math.max(
       MIN_IMPOSTERS_SLIDER,
       Math.floor(maxPlayers / 4)
     );
-    setNumberOfImposters((currentImposters) =>
-      Math.max(
+    setNumberOfImposters((currentImposters) => {
+      const clamped = Math.max(
         MIN_IMPOSTERS_SLIDER,
         Math.min(currentImposters, newMaxAllowedImposters)
-      )
-    );
-  }, [maxPlayers]);
+      );
+      console.log(
+        `[ConfigureGame] maxPlayers changed to ${maxPlayers}. Max allowed imposters: ${newMaxAllowedImposters}. Current imposters: ${currentImposters}. Clamped imposters: ${clamped}`
+      );
+      return clamped;
+    });
+  }, [maxPlayers, isLoading]);
 
   // Persist allPlayers to localStorage whenever it changes
   useEffect(() => {
@@ -275,6 +296,27 @@ export function ConfigureGameForm({
       localStorage.setItem("allPlayers", JSON.stringify(allPlayers));
     }
   }, [allPlayers, isClient]);
+
+  // Persist numberOfImposters to localStorage whenever it changes
+  useEffect(() => {
+    if (isClient) {
+      const storedConfiguration = localStorage.getItem("gameConfiguration");
+      let config = {};
+      if (storedConfiguration) {
+        try {
+          config = JSON.parse(storedConfiguration);
+        } catch (e) {
+          console.error(
+            "[ConfigureGame] Failed to parse existing config, will create new one.",
+            e
+          );
+          config = {};
+        }
+      }
+      const newConfig = { ...config, imposters: numberOfImposters };
+      localStorage.setItem("gameConfiguration", JSON.stringify(newConfig));
+    }
+  }, [numberOfImposters, isClient]);
 
   const handleStartGame = () => {
     if (!selectedCategory) {

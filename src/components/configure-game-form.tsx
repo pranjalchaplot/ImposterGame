@@ -37,6 +37,8 @@ import {
   ChevronDown, // Added ChevronDown icon
   X,
   EyeOff,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
 import { Player } from "@/models/player";
 import ReactDOM from "react-dom";
@@ -621,14 +623,23 @@ export function ConfigureGameForm({
                 </div>
               ))}
               <Button
-                className="rounded-full px-2 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/80 min-w-[80px]"
+                className="rounded-full px-3 py-1.5 text-sm bg-primary text-primary-foreground hover:bg-primary/80 flex items-center"
                 onClick={() => {
                   setNewPlayerName("");
                   setIsAddPlayerModalOpen(true);
                 }}
                 disabled={registeredPlayers.length >= maxPlayers}
               >
-                add
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Player
+              </Button>
+              <Button
+                className="rounded-full px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 flex items-center"
+                onClick={() => setAllPlayers([])}
+                disabled={allPlayers.length === 0}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All
               </Button>
             </div>
             <p className="text-foreground">

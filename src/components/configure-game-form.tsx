@@ -36,7 +36,10 @@ import {
   Guitar,
   ChevronDown, // Added ChevronDown icon
   X,
+  EyeOff,
 } from "lucide-react";
+import { Player } from "@/models/player";
+import ReactDOM from "react-dom";
 
 interface Category {
   value: string;
@@ -117,57 +120,91 @@ const AddPlayerModal = ({
   isOpen,
   onClose,
   onAddPlayer,
+  allPlayers,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onAddPlayer: (playerName: string) => void;
+  allPlayers: Player[];
 }) => {
   const [playerName, setPlayerName] = useState("");
+  const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setPlayerName("");
+    setError("");
+  }, [isOpen]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white p-6 rounded-md">
-        <Label htmlFor="player-name">Player Name:</Label>
-        <input
-          type="text"
-          id="player-name"
-          className="border border-gray-300 rounded-md p-2 w-full"
-          value={playerName}
-          onChange={(e) => setPlayerName(e.target.value)}
-        />
-        <div className="flex justify-end mt-4 space-x-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              if (playerName.trim() !== "") {
-                onAddPlayer(playerName);
-                onClose();
-              }
-              onAddPlayer(playerName);
-              onClose();
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDuplicate = allPlayers.some(
+    (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+  );
+
+  const handleAdd = () => {
+    if (playerName.trim() === "") {
+      setError("Name cannot be empty.");
+      return;
+    }
+    if (isDuplicate) {
+      setError("This name already exists.");
+      return;
+    }
+    onAddPlayer(playerName);
+    onClose();
+  };
+
+  if (!mounted || !isOpen) return null;
+
+  return ReactDOM.createPortal(
+    (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white p-6 rounded-md">
+          <Label htmlFor="player-name">Player Name:</Label>
+          <input
+            type="text"
+            id="player-name"
+            className="border border-gray-300 rounded-md p-2 w-full"
+            value={playerName}
+            onChange={(e) => {
+              setPlayerName(e.target.value);
+              setError("");
             }}
-          >
-            OK
-          </Button>
+          />
+          {error && (
+            <div className="text-red-500 text-sm mt-2">{error}</div>
+          )}
+          <div className="flex justify-end mt-4 space-x-2">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={playerName.trim() === "" || isDuplicate}
+            >
+              OK
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    ),
+    document.body
   );
 };
+
 export function ConfigureGameForm({
   onConfigurationComplete,
 }: ConfigureGameFormProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [numberOfPlayers, setNumberOfPlayers] =
-    useState<number>(DEFAULT_PLAYERS);
+  const [maxPlayers, setMaxPlayers] = useState<number>(DEFAULT_PLAYERS);
   const [revealRole, setRevealRole] = useState(false);
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
-  const [playerName, setPlayerName] = useState("");
-  const [playerNames, setPlayerNames] = useState<string[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [eyeToggled, setEyeToggled] = useState(false);
 
   const calculateInitialImposters = () => {
     const maxAllowed = Math.max(
@@ -196,7 +233,7 @@ export function ConfigureGameForm({
     if (storedConfiguration) {
       const parsedConfiguration = JSON.parse(storedConfiguration);
       setSelectedCategory(parsedConfiguration.category || CATEGORIES[0].value);
-      setNumberOfPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
+      setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
       setNumberOfImposters(
         parsedConfiguration.imposters || calculateInitialImposters()
       );
@@ -207,7 +244,7 @@ export function ConfigureGameForm({
   useEffect(() => {
     const newMaxAllowedImposters = Math.max(
       MIN_IMPOSTERS_SLIDER,
-      Math.floor(numberOfPlayers / 4)
+      Math.floor(maxPlayers / 4)
     );
     setNumberOfImposters((currentImposters) =>
       Math.max(
@@ -215,7 +252,7 @@ export function ConfigureGameForm({
         Math.min(currentImposters, newMaxAllowedImposters)
       )
     );
-  }, [numberOfPlayers]);
+  }, [maxPlayers]);
 
   const handleStartGame = () => {
     if (!selectedCategory) {
@@ -228,7 +265,7 @@ export function ConfigureGameForm({
     }
     const gameConfiguration = {
       category: selectedCategory,
-      players: numberOfPlayers,
+      players: maxPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
     };
@@ -243,13 +280,44 @@ export function ConfigureGameForm({
 
   const imposterSliderMaxProp = Math.max(
     MIN_IMPOSTERS_SLIDER,
-    Math.floor(numberOfPlayers / 4)
+    Math.floor(maxPlayers / 4)
   );
 
   // Find the currently selected category object to display its label and icon
   const currentCategory = CATEGORIES.find(
     (cat) => cat.value === selectedCategory
   );
+
+  // Registered players are those with isVisible = true
+  const registeredPlayers = allPlayers.filter((p) => p.isVisible);
+
+  // Add Player logic
+  const handleAddPlayer = (playerName: string) => {
+    if (
+      playerName.trim() !== "" &&
+      registeredPlayers.length < maxPlayers &&
+      !allPlayers.some((p) => p.name === playerName.trim())
+    ) {
+      setAllPlayers([
+        ...allPlayers,
+        { name: playerName.trim(), isVisible: true },
+      ]);
+    }
+  };
+
+  // Toggle visibility
+  const handleToggleVisibility = (index: number) => {
+    setAllPlayers((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, isVisible: !p.isVisible } : p
+      )
+    );
+  };
+
+  // Remove player
+  const handleRemovePlayer = (index: number) => {
+    setAllPlayers((prev) => prev.filter((_, i) => i !== index));
+  };
 
   if (!isClient) {
     return (
@@ -349,7 +417,7 @@ export function ConfigureGameForm({
               <Users className="mr-2 h-5 w-5 text-primary" /> Number of Players
             </Label>
             <span className="text-xl font-bold text-primary bg-primary/10 px-3 py-1 rounded-md">
-              {numberOfPlayers}
+              {maxPlayers}
             </span>
           </div>
           <Slider
@@ -357,8 +425,8 @@ export function ConfigureGameForm({
             min={MIN_PLAYERS}
             max={MAX_PLAYERS}
             step={1}
-            value={[numberOfPlayers]}
-            onValueChange={(value) => setNumberOfPlayers(value[0])}
+            value={[maxPlayers]}
+            onValueChange={(value) => setMaxPlayers(value[0])}
             className="my-2 [&>span:first-of-type]:h-3 [&>span:first-of-type_>span]:h-3 [&>span:last-of-type]:h-6 [&>span:last-of-type]:w-6 [&>span:last-of-type]:border-2"
           />
           <div className="flex justify-between text-sm text-muted-foreground px-1">
@@ -435,45 +503,51 @@ export function ConfigureGameForm({
             </p>
             <p className="text-foreground">
               <span className="font-semibold">
-                Players ({playerNames.length} / {numberOfPlayers}):
+                Players ({registeredPlayers.length}/{maxPlayers}):
               </span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {playerNames.map((name, index) => (
+              {allPlayers.map((player, index) => (
                 <div
-                  key={index}
-                  className="inline-flex items-center rounded-full bg-secondary px-3 py-0.5 text-sm font-medium"
+                  key={player.name}
+                  className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-medium ${
+                    player.isVisible ? "bg-secondary" : "bg-gray-500/40"
+                  }`}
                 >
                   <button
                     type="button"
-                    className="h-3 w-3 mr-1 rounded-full hover:bg-gray-500 flex items-center justify-center"
-                    onClick={() => {
-                      const newPlayerNames = [...playerNames];
-                      newPlayerNames.splice(index, 1);
-                      setPlayerNames(newPlayerNames);
-                      setNumberOfPlayers(
-                        Math.max(numberOfPlayers - 1, MIN_PLAYERS)
-                      );
-                    }}
+                    className="h-3 w-3 mr-1 rounded-full flex items-center justify-center"
+                    onClick={() => handleRemovePlayer(index)}
                   >
                     <X className="h-3 w-3" />
                   </button>
-                  {name}
+                  <span
+                    style={{
+                      textDecoration: player.isVisible ? "none" : "line-through",
+                    }}
+                  >
+                    {player.name}
+                  </span>
                   <button
                     type="button"
-                    className="ml-2 h-4 w-4 rounded-full hover:bg-gray-500 flex items-center justify-center"
+                    className="ml-2 h-4 w-4 rounded-full flex items-center justify-center"
+                    onClick={() => handleToggleVisibility(index)}
+                    disabled={
+                      !player.isVisible && registeredPlayers.length >= maxPlayers
+                    }
                   >
-                    <span className="sr-only">Remove</span>
-                    <Eye className="h-3 w-3" />
+                    <span className="sr-only">Toggle Visibility</span>
+                    {player.isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   </button>
                 </div>
               ))}
               <Button
                 className="rounded-full px-2 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/80 min-w-[80px]"
                 onClick={() => {
-                  setPlayerName("");
+                  setNewPlayerName("");
                   setIsAddPlayerModalOpen(true);
                 }}
+                disabled={registeredPlayers.length >= maxPlayers}
               >
                 add
               </Button>
@@ -492,10 +566,10 @@ export function ConfigureGameForm({
           isOpen={isAddPlayerModalOpen}
           onClose={() => setIsAddPlayerModalOpen(false)}
           onAddPlayer={(playerName) => {
-            console.log(`Adding player: ${playerName}`);
-            setNumberOfPlayers(Math.min(numberOfPlayers + 1, MAX_PLAYERS));
-            setPlayerNames([...playerNames, playerName]);
+            handleAddPlayer(playerName);
+            setIsAddPlayerModalOpen(false);
           }}
+          allPlayers={allPlayers}
         />
       </CardContent>
       <CardFooter className="flex justify-center p-6 md:p-8 border-t border-border bg-muted/20">

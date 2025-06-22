@@ -42,6 +42,17 @@ import {
 } from "lucide-react";
 import { Player } from "@/models/player";
 import ReactDOM from "react-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
 
 interface Category {
   value: string;
@@ -176,6 +187,11 @@ const AddPlayerModal = ({
             onChange={(e) => {
               setPlayerName(e.target.value);
               setError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleAdd();
+              }
             }}
           />
           {error && (
@@ -633,14 +649,32 @@ export function ConfigureGameForm({
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Player
               </Button>
-              <Button
-                className="rounded-full px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 flex items-center"
-                onClick={() => setAllPlayers([])}
-                disabled={allPlayers.length === 0}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear All
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    className="rounded-full px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 flex items-center"
+                    disabled={allPlayers.length === 0}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action will remove all players from the list. This
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => setAllPlayers([])}>
+                      Continue
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             <p className="text-foreground">
               <span className="font-semibold">Imposters:</span>{" "}

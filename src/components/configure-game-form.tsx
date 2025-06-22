@@ -254,7 +254,7 @@ export function ConfigureGameForm({
         // Ignore parse errors
       }
     }
-  }, [selectedCategory]);
+  }, []);
 
   useEffect(() => {
     const newMaxAllowedImposters = Math.max(

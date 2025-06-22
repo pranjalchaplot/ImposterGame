@@ -6,6 +6,7 @@ import {
   type GameConfiguration,
 } from "@/components/configure-game-form";
 import { PlayerNameEntryForm } from "@/components/player-name-entry-form";
+import { PlayerRoleRevealForm } from "@/components/player-role-reveal-form";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -336,16 +337,15 @@ export default function Home() {
       case "enteringNames":
         if (gameConfig && gameOption) {
           return (
-            <PlayerNameEntryForm
-              numberOfPlayers={gameConfig.players}
-              category={gameConfig.category}
+            <PlayerRoleRevealForm
+              playerNames={gameConfig.playerNames}
               gameOption={gameOption}
               imposterIndices={imposterIndices}
-              onNamesSubmitted={handlePlayerNamesSubmitted}
+              onComplete={handlePlayerNamesSubmitted}
             />
           );
         }
-        return <p>Loading player name entry...</p>;
+        return <p>Loading player role reveal...</p>;
       case "gameReady":
         return (
           <div className="text-center p-8 bg-card text-card-foreground rounded-xl shadow-2xl max-w-lg w-full">

@@ -11,12 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -35,7 +34,12 @@ import {
   Pizza,
   Shirt,
   Guitar,
+  ChevronDown, // Added ChevronDown icon
+  X,
+  EyeOff,
 } from "lucide-react";
+import { Player } from "@/models/player";
+import ReactDOM from "react-dom";
 
 interface Category {
   value: string;
@@ -106,19 +110,102 @@ export interface GameConfiguration {
   players: number;
   imposters: number;
   revealEliminatedPlayerRole: boolean;
+  playerNames: string[];
 }
 
 interface ConfigureGameFormProps {
   onConfigurationComplete: (settings: GameConfiguration) => void;
 }
 
+const AddPlayerModal = ({
+  isOpen,
+  onClose,
+  onAddPlayer,
+  allPlayers,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddPlayer: (playerName: string) => void;
+  allPlayers: Player[];
+}) => {
+  const [playerName, setPlayerName] = useState("");
+  const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setPlayerName("");
+    setError("");
+  }, [isOpen]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDuplicate = allPlayers.some(
+    (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+  );
+
+  const handleAdd = () => {
+    if (playerName.trim() === "") {
+      setError("Name cannot be empty.");
+      return;
+    }
+    if (isDuplicate) {
+      setError("This name already exists.");
+      return;
+    }
+    onAddPlayer(playerName);
+    onClose();
+  };
+
+  if (!mounted || !isOpen) return null;
+
+  return ReactDOM.createPortal(
+    (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white p-6 rounded-md">
+          <Label htmlFor="player-name">Player Name:</Label>
+          <input
+            type="text"
+            id="player-name"
+            className="border border-gray-300 rounded-md p-2 w-full"
+            value={playerName}
+            onChange={(e) => {
+              setPlayerName(e.target.value);
+              setError("");
+            }}
+          />
+          {error && (
+            <div className="text-red-500 text-sm mt-2">{error}</div>
+          )}
+          <div className="flex justify-end mt-4 space-x-2">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={playerName.trim() === "" || isDuplicate}
+            >
+              OK
+            </Button>
+          </div>
+        </div>
+      </div>
+    ),
+    document.body
+  );
+};
+
 export function ConfigureGameForm({
   onConfigurationComplete,
 }: ConfigureGameFormProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [numberOfPlayers, setNumberOfPlayers] =
-    useState<number>(DEFAULT_PLAYERS);
+  const [maxPlayers, setMaxPlayers] = useState<number>(DEFAULT_PLAYERS);
   const [revealRole, setRevealRole] = useState(false);
+  const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [eyeToggled, setEyeToggled] = useState(false);
 
   const calculateInitialImposters = () => {
     const maxAllowed = Math.max(
@@ -142,12 +229,36 @@ export function ConfigureGameForm({
     if (CATEGORIES.length > 0 && !selectedCategory) {
       setSelectedCategory(CATEGORIES[0].value);
     }
+
+    const storedConfiguration = localStorage.getItem("gameConfiguration");
+    if (storedConfiguration) {
+      const parsedConfiguration = JSON.parse(storedConfiguration);
+      setSelectedCategory(parsedConfiguration.category || CATEGORIES[0].value);
+      setMaxPlayers(parsedConfiguration.players || DEFAULT_PLAYERS);
+      setNumberOfImposters(
+        parsedConfiguration.imposters || calculateInitialImposters()
+      );
+      setRevealRole(parsedConfiguration.revealEliminatedPlayerRole || false);
+    }
+
+    // Restore allPlayers from localStorage if present
+    const storedAllPlayers = localStorage.getItem("allPlayers");
+    if (storedAllPlayers) {
+      try {
+        const parsedAllPlayers = JSON.parse(storedAllPlayers);
+        if (Array.isArray(parsedAllPlayers)) {
+          setAllPlayers(parsedAllPlayers);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
   }, [selectedCategory]);
 
   useEffect(() => {
     const newMaxAllowedImposters = Math.max(
       MIN_IMPOSTERS_SLIDER,
-      Math.floor(numberOfPlayers / 4)
+      Math.floor(maxPlayers / 4)
     );
     setNumberOfImposters((currentImposters) =>
       Math.max(
@@ -155,7 +266,14 @@ export function ConfigureGameForm({
         Math.min(currentImposters, newMaxAllowedImposters)
       )
     );
-  }, [numberOfPlayers]);
+  }, [maxPlayers]);
+
+  // Persist allPlayers to localStorage whenever it changes
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem("allPlayers", JSON.stringify(allPlayers));
+    }
+  }, [allPlayers, isClient]);
 
   const handleStartGame = () => {
     if (!selectedCategory) {
@@ -166,18 +284,70 @@ export function ConfigureGameForm({
       });
       return;
     }
-    onConfigurationComplete({
+    if (registeredPlayers.length !== maxPlayers) {
+      toast({
+        title: "Not Enough Players",
+        description: `Please register exactly ${maxPlayers} players before starting the game!`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const gameConfiguration = {
       category: selectedCategory,
-      players: numberOfPlayers,
+      players: maxPlayers,
       imposters: numberOfImposters,
       revealEliminatedPlayerRole: revealRole,
-    });
+      playerNames: registeredPlayers.map((p) => p.name),
+    };
+
+    localStorage.setItem(
+      "gameConfiguration",
+      JSON.stringify(gameConfiguration)
+    );
+
+    onConfigurationComplete(gameConfiguration);
   };
 
   const imposterSliderMaxProp = Math.max(
     MIN_IMPOSTERS_SLIDER,
-    Math.floor(numberOfPlayers / 4)
+    Math.floor(maxPlayers / 4)
   );
+
+  // Find the currently selected category object to display its label and icon
+  const currentCategory = CATEGORIES.find(
+    (cat) => cat.value === selectedCategory
+  );
+
+  // Registered players are those with isVisible = true
+  const registeredPlayers = allPlayers.filter((p) => p.isVisible);
+
+  // Add Player logic
+  const handleAddPlayer = (playerName: string) => {
+    if (
+      playerName.trim() !== "" &&
+      registeredPlayers.length < maxPlayers &&
+      !allPlayers.some((p) => p.name === playerName.trim())
+    ) {
+      setAllPlayers([
+        ...allPlayers,
+        { name: playerName.trim(), isVisible: true },
+      ]);
+    }
+  };
+
+  // Toggle visibility
+  const handleToggleVisibility = (index: number) => {
+    setAllPlayers((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, isVisible: !p.isVisible } : p
+      )
+    );
+  };
+
+  // Remove player
+  const handleRemovePlayer = (index: number) => {
+    setAllPlayers((prev) => prev.filter((_, i) => i !== index));
+  };
 
   if (!isClient) {
     return (
@@ -229,28 +399,43 @@ export function ConfigureGameForm({
           >
             Select Category
           </Label>
-          <Select onValueChange={setSelectedCategory} value={selectedCategory}>
-            <SelectTrigger
-              id="category-select"
-              className="w-full text-base h-12 rounded-md"
-            >
-              <SelectValue placeholder="Choose a category..." />
-            </SelectTrigger>
-            <SelectContent>
+          {/* START: REFACTORED COMPONENT */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                id="category-select"
+                className="w-full text-base h-12 rounded-md justify-between font-normal"
+              >
+                {currentCategory ? (
+                  <div className="flex items-center">
+                    {currentCategory.icon}
+                    <span>{currentCategory.label}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Choose a category...
+                  </span>
+                )}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] max-h-72 overflow-y-auto">
               {CATEGORIES.map((cat) => (
-                <SelectItem
+                <DropdownMenuItem
                   key={cat.value}
-                  value={cat.value}
                   className="text-base py-2"
+                  onSelect={() => setSelectedCategory(cat.value)}
                 >
                   <div className="flex items-center">
                     {cat.icon}
                     <span>{cat.label}</span>
                   </div>
-                </SelectItem>
+                </DropdownMenuItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* END: REFACTORED COMPONENT */}
         </div>
 
         <div className="space-y-3">
@@ -262,7 +447,7 @@ export function ConfigureGameForm({
               <Users className="mr-2 h-5 w-5 text-primary" /> Number of Players
             </Label>
             <span className="text-xl font-bold text-primary bg-primary/10 px-3 py-1 rounded-md">
-              {numberOfPlayers}
+              {maxPlayers}
             </span>
           </div>
           <Slider
@@ -270,8 +455,8 @@ export function ConfigureGameForm({
             min={MIN_PLAYERS}
             max={MAX_PLAYERS}
             step={1}
-            value={[numberOfPlayers]}
-            onValueChange={(value) => setNumberOfPlayers(value[0])}
+            value={[maxPlayers]}
+            onValueChange={(value) => setMaxPlayers(value[0])}
             className="my-2 [&>span:first-of-type]:h-3 [&>span:first-of-type_>span]:h-3 [&>span:last-of-type]:h-6 [&>span:last-of-type]:w-6 [&>span:last-of-type]:border-2"
           />
           <div className="flex justify-between text-sm text-muted-foreground px-1">
@@ -347,8 +532,56 @@ export function ConfigureGameForm({
                 "Not selected"}
             </p>
             <p className="text-foreground">
-              <span className="font-semibold">Players:</span> {numberOfPlayers}
+              <span className="font-semibold">
+                Players ({registeredPlayers.length}/{maxPlayers}):
+              </span>
             </p>
+            <div className="flex flex-wrap gap-2">
+              {allPlayers.map((player, index) => (
+                <div
+                  key={player.name}
+                  className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-medium ${
+                    player.isVisible ? "bg-secondary" : "bg-gray-500/40"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="h-3 w-3 mr-1 rounded-full flex items-center justify-center"
+                    onClick={() => handleRemovePlayer(index)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <span
+                    style={{
+                      textDecoration: player.isVisible ? "none" : "line-through",
+                    }}
+                  >
+                    {player.name}
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-2 h-4 w-4 rounded-full flex items-center justify-center"
+                    onClick={() => handleToggleVisibility(index)}
+                    disabled={
+                      !player.isVisible && registeredPlayers.length >= maxPlayers
+                    }
+                  >
+                    <span className="sr-only">Toggle Visibility</span>
+                    {player.isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  </button>
+                </div>
+              ))}
+              <Button
+                className="rounded-full px-2 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/80 min-w-[80px]"
+                onClick={() => {
+                  setNewPlayerName("");
+                  setIsAddPlayerModalOpen(true);
+                }}
+                disabled={registeredPlayers.length >= maxPlayers}
+              >
+                add
+              </Button>
+            </div>
             <p className="text-foreground">
               <span className="font-semibold">Imposters:</span>{" "}
               {numberOfImposters}
@@ -359,14 +592,24 @@ export function ConfigureGameForm({
             </p>
           </div>
         </div>
+        <AddPlayerModal
+          isOpen={isAddPlayerModalOpen}
+          onClose={() => setIsAddPlayerModalOpen(false)}
+          onAddPlayer={(playerName) => {
+            handleAddPlayer(playerName);
+            setIsAddPlayerModalOpen(false);
+          }}
+          allPlayers={allPlayers}
+        />
       </CardContent>
       <CardFooter className="flex justify-center p-6 md:p-8 border-t border-border bg-muted/20">
         <Button
           onClick={handleStartGame}
           className="w-full text-lg font-semibold py-3 h-12 rounded-md shadow-md hover:shadow-lg transition-shadow"
           size="lg"
+          disabled={registeredPlayers.length !== maxPlayers}
         >
-          Enter Player Names
+          Begin Game
         </Button>
       </CardFooter>
     </Card>

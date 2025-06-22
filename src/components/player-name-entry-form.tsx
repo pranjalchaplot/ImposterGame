@@ -1,4 +1,4 @@
-
+// DEPRECATED: This component is no longer used. Replaced by PlayerRoleRevealForm.
 "use client";
 
 import { useState, useEffect, type FormEvent } from 'react';

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode, forwardRef, useImperativeHandle } from "react";
 import {
   Card,
   CardContent,
@@ -136,15 +136,18 @@ const AddPlayerModal = ({
   onClose,
   onAddPlayer,
   allPlayers,
+  maxPlayers,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onAddPlayer: (playerName: string) => void;
   allPlayers: Player[];
+  maxPlayers: number;
 }) => {
   const [playerName, setPlayerName] = useState("");
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setPlayerName("");
@@ -155,9 +158,41 @@ const AddPlayerModal = ({
     setMounted(true);
   }, []);
 
+  // Auto-focus the input when modal opens
+  useEffect(() => {
+    if (isOpen && mounted) {
+      const inputElement = document.getElementById('player-name');
+      if (inputElement) {
+        // Small delay to ensure the modal is fully rendered
+        setTimeout(() => {
+          inputElement.focus();
+        }, 100);
+      }
+    }
+  }, [isOpen, mounted]);
+
+  // Check if player list is full and auto-close with warning
+  useEffect(() => {
+    const registeredPlayers = allPlayers.filter((p) => p.isVisible);
+    if (registeredPlayers.length >= maxPlayers && isOpen) {
+      // Show warning toast and close modal
+      toast({
+        title: "Player List Complete",
+        description: `Maximum number of players (${maxPlayers}) reached. Player list is now full.`,
+        variant: "default",
+      });
+      setTimeout(() => {
+        onClose();
+      }, 100);
+    }
+  }, [allPlayers, maxPlayers, isOpen, onClose, toast]);
+
   const isDuplicate = allPlayers.some(
     (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
   );
+
+  const registeredPlayers = allPlayers.filter((p) => p.isVisible);
+  const isPlayerListFull = registeredPlayers.length >= maxPlayers;
 
   const handleAdd = () => {
     if (playerName.trim() === "") {
@@ -168,8 +203,14 @@ const AddPlayerModal = ({
       setError("This name already exists.");
       return;
     }
+    if (isPlayerListFull) {
+      setError("Player list is complete. Cannot add more players.");
+      return;
+    }
     onAddPlayer(playerName);
-    onClose();
+    // Clear the input field and error, but don't close the modal
+    setPlayerName("");
+    setError("");
   };
 
   if (!mounted || !isOpen) return null;
@@ -193,9 +234,15 @@ const AddPlayerModal = ({
                 handleAdd();
               }
             }}
+            disabled={isPlayerListFull}
           />
           {error && (
             <div className="text-red-500 text-sm mt-2">{error}</div>
+          )}
+          {isPlayerListFull && (
+            <div className="text-amber-600 text-sm mt-2 font-medium">
+              Player list is complete ({registeredPlayers.length}/{maxPlayers})
+            </div>
           )}
           <div className="flex justify-end mt-4 space-x-2">
             <Button variant="secondary" onClick={onClose}>
@@ -203,9 +250,9 @@ const AddPlayerModal = ({
             </Button>
             <Button
               onClick={handleAdd}
-              disabled={playerName.trim() === "" || isDuplicate}
+              disabled={playerName.trim() === "" || isDuplicate || isPlayerListFull}
             >
-              OK
+              Next
             </Button>
           </div>
         </div>
@@ -215,9 +262,10 @@ const AddPlayerModal = ({
   );
 };
 
-export function ConfigureGameForm({
-  onConfigurationComplete,
-}: ConfigureGameFormProps) {
+export const ConfigureGameForm = forwardRef<
+  { openAddPlayerModal: () => void },
+  ConfigureGameFormProps
+>(({ onConfigurationComplete }, ref) => {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [maxPlayers, setMaxPlayers] = useState<number>(DEFAULT_PLAYERS);
   const [revealRole, setRevealRole] = useState(false);
@@ -354,7 +402,11 @@ export function ConfigureGameForm({
       return;
     }
     // Randomly select imposters
-    const shuffled = [...registeredPlayers].sort(() => 0.5 - Math.random());
+    const shuffled = [...registeredPlayers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     const imposters = shuffled.slice(0, numberOfImposters);
     const imposterNames = imposters.map((p) => p.name);
 
@@ -415,6 +467,16 @@ export function ConfigureGameForm({
   const handleRemovePlayer = (index: number) => {
     setAllPlayers((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // Expose the openAddPlayerModal function through the ref
+  useImperativeHandle(ref, () => ({
+    openAddPlayerModal: () => {
+      if (registeredPlayers.length < maxPlayers) {
+        setNewPlayerName("");
+        setIsAddPlayerModalOpen(true);
+      }
+    },
+  }));
 
   if (!isClient) {
     return (
@@ -691,9 +753,9 @@ export function ConfigureGameForm({
           onClose={() => setIsAddPlayerModalOpen(false)}
           onAddPlayer={(playerName) => {
             handleAddPlayer(playerName);
-            setIsAddPlayerModalOpen(false);
           }}
           allPlayers={allPlayers}
+          maxPlayers={maxPlayers}
         />
       </CardContent>
       <CardFooter className="flex justify-center p-6 md:p-8 border-t border-border bg-muted/20">
@@ -708,4 +770,6 @@ export function ConfigureGameForm({
       </CardFooter>
     </Card>
   );
-}
+});
+
+ConfigureGameForm.displayName = 'ConfigureGameForm';

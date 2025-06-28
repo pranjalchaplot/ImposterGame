@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, ShieldAlert, HelpCircle, XCircle, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Confetti from "react-confetti";
+import React from "react";
 
 type GameStage = "configuring" | "enteringNames" | "gameReady" | "playingRound";
 
@@ -57,6 +58,9 @@ export default function Home() {
   const [isLoadingOptions, setIsLoadingOptions] = useState<boolean>(true);
   const [optionsError, setOptionsError] = useState<string | null>(null);
 
+  // Add ref to access the ConfigureGameForm component
+  const configureGameFormRef = React.useRef<{ openAddPlayerModal: () => void }>(null);
+
   useEffect(() => {
     setClientRandomValue(Math.random());
 
@@ -74,6 +78,23 @@ export default function Home() {
       return () => window.removeEventListener("resize", handleResize);
     }
   }, []);
+
+  // Add keyboard event listener for Ctrl+P
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if Ctrl+P is pressed and we're on the configuring stage
+      if (event.ctrlKey && event.key === 'p' && currentStage === "configuring") {
+        event.preventDefault(); // Prevent default browser behavior
+        // Trigger the add player modal
+        if (configureGameFormRef.current?.openAddPlayerModal) {
+          configureGameFormRef.current.openAddPlayerModal();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentStage]);
 
   useEffect(() => {
     async function fetchOptions() {
@@ -314,6 +335,7 @@ export default function Home() {
       // Still using clientRandomValue for some client-side only initializations
       return (
         <ConfigureGameForm
+          ref={configureGameFormRef}
           onConfigurationComplete={handleConfigurationComplete}
         />
       );
@@ -322,6 +344,7 @@ export default function Home() {
       case "configuring":
         return (
           <ConfigureGameForm
+            ref={configureGameFormRef}
             onConfigurationComplete={handleConfigurationComplete}
           />
         );
@@ -511,6 +534,7 @@ export default function Home() {
       default:
         return (
           <ConfigureGameForm
+            ref={configureGameFormRef}
             onConfigurationComplete={handleConfigurationComplete}
           />
         );
